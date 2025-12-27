@@ -39,7 +39,9 @@ public:
     uint8_t GetRCTCopies(void);
 
     void SetOnline(void);
-    void SetOffline(void);bool IsOnline(void);bool IsAvailable(void);
+    void SetOffline(void);
+    bool IsOnline(void);
+    bool IsAvailable(void);
 
     void Write(uint32_t blockNumber, size_t lengthInBytes, uint8_t* buffer);
 

@@ -112,6 +112,8 @@ OBJECTS = $(OBJDIR)/application.o	\
 	$(OBJDIR)/uda.o         \
 	$(OBJDIR)/mscp_server.o \
 	$(OBJDIR)/mscp_drive.o \
+	$(OBJDIR)/tmscp_server.o \
+	$(OBJDIR)/tmscp_drive.o \
 	$(OBJDIR)/rx0102drive.o	\
 	$(OBJDIR)/rx0102ucpu.o	\
 	$(OBJDIR)/rx11.o	\
@@ -297,6 +299,12 @@ $(OBJDIR)/mscp_server.o :   $(DEVICE_SRC_DIR)/mscp_server.cpp $(DEVICE_SRC_DIR)/
 	$(CC) $(CCFLAGS) $< -o $@
 
 $(OBJDIR)/mscp_drive.o :   $(DEVICE_SRC_DIR)/mscp_drive.cpp $(DEVICE_SRC_DIR)/mscp_drive.hpp
+	$(CC) $(CCFLAGS) $< -o $@
+
+$(OBJDIR)/tmscp_server.o :   $(DEVICE_SRC_DIR)/tmscp_server.cpp $(DEVICE_SRC_DIR)/tmscp_server.hpp
+	$(CC) $(CCFLAGS) $< -o $@
+
+$(OBJDIR)/tmscp_drive.o :   $(DEVICE_SRC_DIR)/tmscp_drive.cpp $(DEVICE_SRC_DIR)/tmscp_drive.hpp
 	$(CC) $(CCFLAGS) $< -o $@
 
 $(OBJDIR)/rs232.o :  $(DEVICE_SRC_DIR)/rs232.cpp $(DEVICE_SRC_DIR)/rs232.hpp

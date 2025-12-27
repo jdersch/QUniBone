@@ -1,6 +1,8 @@
 /*
     uda.hpp: MSCP controller port (UDA50)
 
+    TODO: rename to something more generic (mscp_port ? )
+
     Copyright Vulcan Inc. 2019 via Living Computers: Museum + Labs, Seattle, WA.
     Contributed under the BSD 2-clause license.
 */
@@ -12,8 +14,13 @@
 #include "qunibusadapter.hpp"
 #include "qunibusdevice.hpp"
 #include "storagecontroller.hpp"
-#include "mscp_server.hpp"
 #include "mscp_drive.hpp"
+#include "mscp_server.hpp"
+
+namespace mscp {
+
+#define MSCP_CSR    0772150
+#define TMSCP_CSR   0774500
 
 // The number of drives supported by the controller.
 // This is arbitrarily fixed at 8 but could be set to any
@@ -40,6 +47,11 @@
 #define PORT_ERROR_PACKET_WRITE    2
 #define PORT_ERROR_RING_READ       6
 #define PORT_ERROR_RING_WRITE      7 
+
+enum PortType {
+    MSCP,
+    TMSCP
+};
 
 // TODO: this currently assumes a little-endian machine!
 #pragma pack(push,1)
@@ -71,7 +83,7 @@ struct Message
 class uda_c : public storagecontroller_c
 {
 public:
-    uda_c();
+    uda_c(PortType type);
     virtual ~uda_c();
 
 	bool on_param_changed(parameter_c *param) override;
@@ -115,7 +127,9 @@ public:
     uint16_t GetControllerClassModel(void);
    
     uint32_t GetDriveCount(void);
-    mscp_drive_c* GetDrive(uint32_t driveNumber);
+    storagedrive_c* GetDrive(uint32_t driveNumber);
+
+    PortType GetPortType(void) { return _portType; }
 
 private:
     // TODO: consolidate these private/public groups here 
@@ -130,7 +144,10 @@ private:
     enum ControllerType {
         UDA50 = 0,
         RQDX3 = 1,
+        TMSCP = 2,   // TODO: more specific types needed for tape?
     } _controllerType;
+
+    PortType _portType;
 
     bool _22bitDMA;
    
@@ -215,3 +232,4 @@ private:
     #pragma pack(pop) 
 };
 
+}   // end namespace

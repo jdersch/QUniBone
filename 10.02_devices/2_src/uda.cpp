@@ -28,11 +28,17 @@
 #include "qunibusdevice.hpp"
 #include "storagecontroller.hpp"
 #include "mscp_drive.hpp"
+#include "tmscp_drive.hpp"
+#include "mscp_server.hpp"
+#include "tmscp_server.hpp"
 #include "uda.hpp"
 
-uda_c::uda_c() :
+namespace mscp {
+
+uda_c::uda_c(PortType portType) :
         storagecontroller_c(),
         _controllerType(UDA50),
+        _portType(portType),
         _22bitDMA(false),
         _server(nullptr),
         _ringBase(0),
@@ -47,17 +53,35 @@ uda_c::uda_c() :
         _initStep(InitializationStep::Uninitialized),
         _next_step(false)
 {
-    name.value = "uda";  
-    type_name.value = "UDA50";
-    type_name.readonly = false; 
-    base_addr.readonly = false;
-    log_label = "uda";
+    if (portType == PortType::MSCP) {
+        name.value = "uda";  
+        type_name.value = "UDA50";
+        type_name.readonly = false; 
+        base_addr.readonly = false;
+        log_label = "uda";
+    }
+    else {
+        name.value = "tmscp";  
+        type_name.value = "TMSCP";
+        type_name.readonly = false; 
+        base_addr.readonly = false;
+        log_label = "tmscp";
+    }
     _22bitDMA = twenty_two_bit_DMA.value = (qunibus->addr_width == 22); 
 
-    // base addr, intr-vector, intr level
-    set_default_bus_params(0772150, 20, 0154, 5) ;
+    // We set intr level here to a default but it is set by software
+    // when the controller is initialized.
+    if (_portType == PortType::MSCP)
+    {
+        set_default_bus_params(MSCP_CSR, 20, 0154, 5);
+    }
+    else
+    {
+        set_default_bus_params(TMSCP_CSR, 19, 0160, 5);
+    }
+    
 
-    // The UDA50 controller has two registers.
+    // A MSCP port has two registers.
     register_count = 2;
 
     IP_reg = &(this->registers[0]); // @ base addr
@@ -74,7 +98,7 @@ uda_c::uda_c() :
     SA_reg->reset_value = 0;
     SA_reg->writable_bits = 0xffff;
 
-    _server.reset(new mscp_server(this));
+    _server.reset(_portType == PortType::MSCP ? new mscp_server(this) : new tmscp_server(this));
 
     //
     // Initialize drives.  We support up to eight attached drives.
@@ -82,7 +106,17 @@ uda_c::uda_c() :
     drivecount = DRIVE_COUNT;
     for (uint32_t i=0; i<drivecount; i++)
     {
-        mscp_drive_c *drive = new mscp_drive_c(this, i);
+        storagedrive_c* drive;
+
+        if (_portType == PortType::MSCP)
+        {
+            drive = new mscp_drive_c(this, i);
+        }
+        else
+        {
+            drive = new tmscp_drive_c(this, i);
+        }
+        
         drive->unitno.value = i;
         drive->activity_led.value = i ; // default: LED = unitno
         drive->name.value = name.value + std::to_string(i);
@@ -116,20 +150,27 @@ bool uda_c::on_param_changed(parameter_c *param)
     } 
     else if (param == &intr_vector) 
     {
-        return false;  // Not configurable for the UDA50.
+        return false;  // Not configurable for MSCP devices.
     } 
     else if (param == &type_name) 
     {
-        if (strcasecmp("uda50", type_name.new_value.c_str()) == 0) 
+        if (_portType == PortType::MSCP) 
         {
-            _controllerType = UDA50;
+            if (strcasecmp("uda50", type_name.new_value.c_str()) == 0) 
+            {
+                _controllerType = UDA50;
+            }
+            else if (strcasecmp("rqdx3", type_name.new_value.c_str()) == 0)
+            {
+                _controllerType = RQDX3;
+            }
+            else
+            {
+                return false;
+            }
         }
-        else if (strcasecmp("rqdx3", type_name.new_value.c_str()) == 0)
-        {
-            _controllerType = RQDX3;
-        }
-        else
-        {
+        else {
+            // TODO: allow TMSCP type config here if we need it
             return false;
         }
     }
@@ -144,13 +185,12 @@ bool uda_c::on_param_changed(parameter_c *param)
 
 //
 // Reset():
-//  Resets the UDA controller state.
-//  Resets the attached MSCP server, which may take
-//  significant time.
+//  Resets the port and attached server state.
+//  This may take significant time.
 //
 void uda_c::Reset(void)
 {
-    DEBUG_FAST("UDA reset");
+    DEBUG_FAST("MSCP port reset");
 
     _server->Reset();
 
@@ -179,7 +219,7 @@ uint32_t uda_c::GetDriveCount(void)
 //  Returns a pointer to an mscp_drive_c object for the specified drive number.
 //  This pointer is owned by the UDA class.
 // 
-mscp_drive_c* uda_c::GetDrive(
+storagedrive_c* uda_c::GetDrive(
     uint32_t driveNumber)
 {
     assert(driveNumber < drivecount);
@@ -875,7 +915,15 @@ uda_c::GetControllerIdentifier()
 uint16_t
 uda_c::GetControllerClassModel()
 {
-    return 0x0102;   // Class 1 (mass storage), model 2 (UDA50)
+    // TODO: make this more general
+    if (_portType == PortType::MSCP)
+    {
+        return 0x0102;   // Class 1 (mass storage), model 2 (UDA50)
+    }
+    else 
+    {
+        return 0x0103;   // TODO: what should this be?
+    }
 }
 
 //
@@ -1049,8 +1097,8 @@ uda_c::DMAWrite(
     size_t lengthInBytes,
     uint8_t* buffer)
 {
-    assert ((lengthInBytes % 2) == 0);
-    assert (address < 2* qunibus->addr_space_word_count); // exceeds address space? test for IOpage too?
+    assert((lengthInBytes % 2) == 0);
+    assert(address < 2 * qunibus->addr_space_word_count); // exceeds address space? test for IOpage too?
 
     qunibusadapter->DMA(dma_request, true,
             QUNIBUS_CYCLE_DATO,
@@ -1074,15 +1122,13 @@ uda_c::DMARead(
     size_t lengthInBytes,
     size_t bufferSize)
 {
-    assert (bufferSize >= lengthInBytes);
+    assert(bufferSize >= lengthInBytes);
     assert((lengthInBytes % 2) == 0);
-    assert (address < 2* qunibus->addr_space_word_count); // exceeds address space? test for IOpage too?
+    assert(address < 2 * qunibus->addr_space_word_count); // exceeds address space? test for IOpage too?
 
     uint16_t* buffer = new uint16_t[bufferSize >> 1];
 
     assert(buffer);
-
-    memset(reinterpret_cast<uint8_t*>(buffer), 0xc3, bufferSize);
 
     qunibusadapter->DMA(dma_request, true,
                 QUNIBUS_CYCLE_DATI,
@@ -1092,13 +1138,12 @@ uda_c::DMARead(
 
     if (dma_request.success)
     { 
-	return reinterpret_cast<uint8_t*>(buffer);
+	    return reinterpret_cast<uint8_t*>(buffer);
     }
     else
     {
-//    ARM_DEBUG_PIN0(1) ;
-//printf("UDA.DMARead NXM: address=%07o,len=%d words, failing addr=%07o",
-//		address, lengthInBytes >> 1, dma_request.qunibus_end_addr ) ;
         return nullptr;     
     }
 } 
+
+} // end namespace

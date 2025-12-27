@@ -66,6 +66,8 @@
 #endif
 #include "cpu.hpp"
 
+using namespace mscp;
+
 /*** handle loading of memory content  from macro-11 listing ***/
 static char memory_filename[PATH_MAX + 1];
 
@@ -197,8 +199,10 @@ void application_c::menu_devices(const char *menu_code, bool with_emulated_CPU)
     rkv11_c *RK11 = new rkv11_c();
 #endif
 
-    // Create UDA50
-    uda_c *UDA50 = new uda_c();
+    // Create MSCP controller
+    uda_c *MSCP = new uda_c(mscp::PortType::MSCP);
+    // Create TMSCP controller
+    uda_c *TMSCP = new uda_c(mscp::PortType::TMSCP);
     // Create 2 SLUs + LTC
     slu_c *DL11 = new slu_c();
     slu_c *DL11b = new slu_c();
@@ -681,8 +685,11 @@ void application_c::menu_devices(const char *menu_code, bool with_emulated_CPU)
     RK11->enabled.set(false);
     delete RK11;
 
-    UDA50->enabled.set(false);
-    delete UDA50;
+    MSCP->enabled.set(false);
+    delete MSCP;
+
+    TMSCP->enabled.set(false);
+    delete TMSCP;
 
     //test_controller->enabled.set(false);
     //delete test_controller;

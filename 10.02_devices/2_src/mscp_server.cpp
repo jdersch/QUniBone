@@ -46,6 +46,8 @@
 #include "mscp_server.hpp"
 #include "uda.hpp"
 
+namespace mscp {
+
 //
 // polling_worker():
 //  Runs the main MSCP polling thread.
@@ -69,15 +71,14 @@ mscp_server::mscp_server(
         polling_mutex(PTHREAD_MUTEX_INITIALIZER),
         _credits(INIT_CREDITS) 
 {
-    set_workers_count(0) ; // no std worker()
-    name.value = "mscp_server" ;
-    type_name.value = "mscp_server_c" ;
-    log_label = "MSSVR" ;
+    set_workers_count(0) ; // no std worker()    
     // Alias the port pointer.  We do not own the port, we merely reference it.
     _port = port;
 
-    enabled.set(true) ; 
-    enabled.readonly = true ; // always active
+    enabled.set(true); 
+    enabled.readonly = true; // always active
+
+    SetMetadata();
 
     StartPollingThread();
 }
@@ -100,7 +101,12 @@ bool mscp_server::on_param_changed(parameter_c *param)
     return device_c::on_param_changed(param) ; // more actions (for enable)
 }
 
-
+void mscp_server::SetMetadata()
+{
+    name.value = "mscp_server" ;
+    type_name.value = "mscp_server_c";
+    log_label = "MSSVR";
+}
 
 //
 // StartPollingThread():
@@ -255,69 +261,8 @@ mscp_server::Poll(void)
             uint32_t cmdStatus = 0;
             uint16_t modifiers = header->Word3.Command.Modifiers;
 
-            switch (header->Word3.Command.Opcode)
-            {
-                case Opcodes::ABORT:
-                    cmdStatus = Abort();
-                    break;
-
-                case Opcodes::ACCESS:
-                    cmdStatus = Access(message, header->UnitNumber);
-                    break;
-
-                case Opcodes::AVAILABLE:
-                    cmdStatus = Available(header->UnitNumber, modifiers);
-                    break;
-
-                case Opcodes::COMPARE_HOST_DATA:
-                    cmdStatus = CompareHostData(message, header->UnitNumber);
-                    break;
-
-                case Opcodes::DETERMINE_ACCESS_PATHS:
-                    cmdStatus = DetermineAccessPaths(header->UnitNumber);
-                    break;
-
-                case Opcodes::ERASE:
-                    cmdStatus = Erase(message, header->UnitNumber, modifiers);
-                    break;
-
-                case Opcodes::GET_COMMAND_STATUS:
-                    cmdStatus = GetCommandStatus(message);
-                    break;
-
-                case Opcodes::GET_UNIT_STATUS:
-                    cmdStatus = GetUnitStatus(message, header->UnitNumber, modifiers);
-                    break;
-
-                case Opcodes::ONLINE:
-                    cmdStatus = Online(message, header->UnitNumber, modifiers);
-                    break;
-
-                case Opcodes::READ:
-                    cmdStatus = Read(message, header->UnitNumber, modifiers);
-                    break;
-
-                case Opcodes::REPLACE:
-                    cmdStatus = Replace(message, header->UnitNumber);
-                    break;
-
-                case Opcodes::SET_CONTROLLER_CHARACTERISTICS:
-                    cmdStatus = SetControllerCharacteristics(message);     
-                    break;
-
-                case Opcodes::SET_UNIT_CHARACTERISTICS:
-                    cmdStatus = SetUnitCharacteristics(message, header->UnitNumber, modifiers);
-                    break;
-
-                case Opcodes::WRITE:
-                    cmdStatus = Write(message, header->UnitNumber, modifiers);
-                    break;
-
-                default:
-                    DEBUG_FAST("Unimplemented MSCP command 0x%x", header->Word3.Command.Opcode);
-                    protocolError = true;
-                    break;
-            }
+            // Execute the MSCP/TMSCP command
+            cmdStatus = DispatchCommand(message, header, modifiers, &protocolError);
 
             if (protocolError)
             {
@@ -407,6 +352,99 @@ mscp_server::Poll(void)
     DEBUG_FAST("MSCP Polling thread exiting."); 
 }
 
+uint32_t mscp_server::DispatchCommand(const std::shared_ptr<Message> message, const ControlMessageHeader* header, uint16_t modifiers, bool *protocolError)
+{
+    uint32_t cmdStatus = 0;
+    switch (header->Word3.Command.Opcode)
+    {
+    case Opcodes::ABORT:
+        cmdStatus = Abort();
+        break;
+
+    case Opcodes::ACCESS:
+        cmdStatus = Access(message, header->UnitNumber);
+        break;
+
+    case Opcodes::AVAILABLE:
+        cmdStatus = Available(header->UnitNumber, modifiers);
+        break;
+
+    case Opcodes::COMPARE_HOST_DATA:
+        cmdStatus = CompareHostData(message, header->UnitNumber);
+        break;
+
+    case Opcodes::DETERMINE_ACCESS_PATHS:
+        cmdStatus = DetermineAccessPaths(header->UnitNumber);
+        break;
+
+    case Opcodes::ERASE:
+        cmdStatus = Erase(message, header->UnitNumber, modifiers);
+        break;
+
+    case Opcodes::GET_COMMAND_STATUS:
+        cmdStatus = GetCommandStatus(message);
+        break;
+
+    case Opcodes::GET_UNIT_STATUS:
+        cmdStatus = GetUnitStatus(message, header->UnitNumber, modifiers);
+        break;
+
+    case Opcodes::ONLINE:
+        cmdStatus = Online(message, header->UnitNumber, modifiers);
+        break;
+
+    case Opcodes::READ:
+        cmdStatus = Read(message, header->UnitNumber, modifiers);
+        break;
+
+    case Opcodes::REPLACE:
+        cmdStatus = Replace(message, header->UnitNumber);
+        break;
+
+    case Opcodes::SET_CONTROLLER_CHARACTERISTICS:
+        cmdStatus = SetControllerCharacteristics(message);
+        break;
+
+    case Opcodes::SET_UNIT_CHARACTERISTICS:
+        cmdStatus = SetUnitCharacteristics(message, header->UnitNumber, modifiers);
+        break;
+
+    case Opcodes::WRITE:
+        cmdStatus = Write(message, header->UnitNumber, modifiers);
+        break;
+
+    default:
+        DEBUG_FAST("Unimplemented MSCP command 0x%x", header->Word3.Command.Opcode);
+        *protocolError = true;
+        break;
+    }
+
+    return cmdStatus;
+}
+
+//
+// GetDrive():
+//  Returns the mscp_drive_c object for the specified unit number,
+//  or nullptr if no such object exists.
+//
+static mscp_drive_c*
+GetDrive(
+    uda_c * port,
+    uint32_t unitNumber)
+{
+    // Sanity check for now; if this is being called we had better be attached to an MSCP port:
+    // Would be nice to make this cleaner.
+    assert(port->GetPortType() == PortType::MSCP);
+
+    mscp_drive_c* drive = nullptr;
+    if (unitNumber < port->GetDriveCount())
+    {
+        drive = dynamic_cast<mscp_drive_c*>(port->GetDrive(unitNumber));
+    }
+
+    return drive;
+}
+
 //
 // The following are all implementations of the MSCP commands we support.
 //
@@ -440,7 +478,7 @@ mscp_server::Available(
     // We do nothing with the spin-down modifier.
     DEBUG_FAST("MSCP AVAILABLE");
 
-    mscp_drive_c* drive = GetDrive(unitNumber);
+    mscp_drive_c* drive = GetDrive(_port, unitNumber);
 
     if (nullptr == drive ||
         !drive->IsAvailable())
@@ -490,7 +528,7 @@ mscp_server::DetermineAccessPaths(
     //  if the unit is incapable of being connected to more than one
     //  controller." That's us!
 
-    mscp_drive_c* drive = GetDrive(unitNumber); 
+    mscp_drive_c* drive = GetDrive(_port, unitNumber); 
     if (nullptr == drive ||
         !drive->IsAvailable())
     {
@@ -595,7 +633,7 @@ mscp_server::GetUnitStatus(
         }
     }
 
-    mscp_drive_c* drive = GetDrive(unitNumber);
+    mscp_drive_c* drive = GetDrive(_port, unitNumber);
 
     GetUnitStatusResponseParameters* params = 
         reinterpret_cast<GetUnitStatusResponseParameters*>(
@@ -693,7 +731,7 @@ mscp_server::Replace(
     //
     message->MessageLength = HEADER_SIZE;
 
-    mscp_drive_c* drive = GetDrive(unitNumber);
+    mscp_drive_c* drive = GetDrive(_port, unitNumber);
 
     if (nullptr == drive ||
         !drive->IsAvailable())
@@ -856,7 +894,7 @@ mscp_server::SetUnitCharacteristicsInternal(
     message->MessageLength = sizeof(SetUnitCharacteristicsResponseParameters) +
         HEADER_SIZE;
 
-    mscp_drive_c* drive = GetDrive(unitNumber);
+    mscp_drive_c* drive = GetDrive(_port, unitNumber);
     // Check unit
     if (nullptr == drive ||
         !drive->IsAvailable())
@@ -930,7 +968,7 @@ mscp_server::DoDiskTransfer(
     message->MessageLength = sizeof(ReadWriteEraseParameters) +
         HEADER_SIZE;
 
-    mscp_drive_c* drive = GetDrive(unitNumber);
+    mscp_drive_c* drive = GetDrive(_port, unitNumber);
 
     // Check unit
     if (nullptr == drive ||
@@ -1111,24 +1149,6 @@ mscp_server::GetParameterPointer(
 }
 
 //
-// GetDrive():
-//  Returns the mscp_drive_c object for the specified unit number,
-//  or nullptr if no such object exists.
-//
-mscp_drive_c*
-mscp_server::GetDrive(
-    uint32_t unitNumber)
-{
-    mscp_drive_c* drive = nullptr;
-    if (unitNumber < _port->GetDriveCount())
-    {
-        drive = _port->GetDrive(unitNumber);
-    }
-
-    return drive;
-}
-
-//
 // Reset():
 //  Resets the MSCP server:
 //   - Waits for the polling thread to finish its current work
@@ -1158,7 +1178,7 @@ mscp_server::Reset(void)
     // Release all drives
     for (uint32_t i=0;i<_port->GetDriveCount();i++)
     {
-        GetDrive(i)->SetOffline();
+        GetDrive(_port, i)->SetOffline();
     }
 }
 
@@ -1179,3 +1199,4 @@ mscp_server::InitPolling(void)
     pthread_mutex_unlock(&polling_mutex);
 }
 
+} // end namespace
