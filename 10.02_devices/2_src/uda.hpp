@@ -14,7 +14,7 @@
 #include "qunibusadapter.hpp"
 #include "qunibusdevice.hpp"
 #include "storagecontroller.hpp"
-#include "mscp_drive.hpp"
+#include "mscp_drive_base.hpp"
 #include "mscp_server.hpp"
 
 namespace mscp {
@@ -127,7 +127,7 @@ public:
     uint16_t GetControllerClassModel(void);
    
     uint32_t GetDriveCount(void);
-    storagedrive_c* GetDrive(uint32_t driveNumber);
+    mscp_drive_base_c* GetDrive(uint32_t driveNumber);
 
     PortType GetPortType(void) { return _portType; }
 
@@ -165,7 +165,7 @@ private:
     qunibusdevice_register_t *IP_reg;
     qunibusdevice_register_t *SA_reg;
 
-    std::shared_ptr<mscp_server> _server;
+    std::shared_ptr<mscp_server_base> _server;
 
     uint32_t _ringBase;
 

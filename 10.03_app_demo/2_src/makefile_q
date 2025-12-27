@@ -111,7 +111,9 @@ OBJECTS = $(OBJDIR)/application.o	\
     $(OBJDIR)/rf11.o    \
     $(OBJDIR)/rs11.o    \
 	$(OBJDIR)/uda.o         \
+	$(OBJDIR)/mscp_server_base.o \
 	$(OBJDIR)/mscp_server.o \
+	$(OBJDIR)/mscp_drive_base.o \
 	$(OBJDIR)/mscp_drive.o \
 	$(OBJDIR)/tmscp_server.o \
 	$(OBJDIR)/tmscp_drive.o \
@@ -295,7 +297,13 @@ $(OBJDIR)/rx0102drive.o :  $(DEVICE_SRC_DIR)/rx0102drive.cpp $(DEVICE_SRC_DIR)/r
 $(OBJDIR)/uda.o :   $(DEVICE_SRC_DIR)/uda.cpp $(DEVICE_SRC_DIR)/uda.hpp
 	$(CC) $(CCFLAGS) $< -o $@
 
+$(OBJDIR)/mscp_server_base.o :   $(DEVICE_SRC_DIR)/mscp_server_base.cpp $(DEVICE_SRC_DIR)/mscp_server_base.hpp
+	$(CC) $(CCFLAGS) $< -o $@
+
 $(OBJDIR)/mscp_server.o :   $(DEVICE_SRC_DIR)/mscp_server.cpp $(DEVICE_SRC_DIR)/mscp_server.hpp
+	$(CC) $(CCFLAGS) $< -o $@
+
+$(OBJDIR)/mscp_drive_base.o :   $(DEVICE_SRC_DIR)/mscp_drive_base.cpp $(DEVICE_SRC_DIR)/mscp_drive_base.hpp
 	$(CC) $(CCFLAGS) $< -o $@
 
 $(OBJDIR)/mscp_drive.o :   $(DEVICE_SRC_DIR)/mscp_drive.cpp $(DEVICE_SRC_DIR)/mscp_drive.hpp

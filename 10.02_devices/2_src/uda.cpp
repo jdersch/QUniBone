@@ -98,7 +98,14 @@ uda_c::uda_c(PortType portType) :
     SA_reg->reset_value = 0;
     SA_reg->writable_bits = 0xffff;
 
-    _server.reset(_portType == PortType::MSCP ? new mscp_server(this) : new tmscp_server(this));
+    if (_portType == PortType::MSCP)
+    {
+        _server.reset(new mscp_server(this));
+    }
+    else
+    {
+        _server.reset(new tmscp_server(this));
+    }
 
     //
     // Initialize drives.  We support up to eight attached drives.
@@ -216,15 +223,15 @@ uint32_t uda_c::GetDriveCount(void)
    
 //
 // GetDrive():
-//  Returns a pointer to an mscp_drive_c object for the specified drive number.
+//  Returns a pointer to an mscp_drive_base_c object for the specified drive number.
 //  This pointer is owned by the UDA class.
 // 
-storagedrive_c* uda_c::GetDrive(
+mscp_drive_base_c* uda_c::GetDrive(
     uint32_t driveNumber)
 {
     assert(driveNumber < drivecount);
 
-    return dynamic_cast<mscp_drive_c*>(storagedrives[driveNumber]);
+    return dynamic_cast<mscp_drive_base_c*>(storagedrives[driveNumber]);
 }
 
 //

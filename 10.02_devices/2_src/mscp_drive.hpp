@@ -13,11 +13,11 @@
 #include <memory>	// unique_ptr
 #include "parameter.hpp"
 #include "storagedrive.hpp"
-
+#include "mscp_drive_base.hpp"
 //
 // Implements the backing store for MSCP disk images
 //
-class mscp_drive_c: public storagedrive_c 
+class mscp_drive_c : public mscp_drive_base_c 
 {
 public:
     mscp_drive_c(storagecontroller_c *controller, uint32_t driveNumber);
@@ -36,12 +36,7 @@ public:
     uint16_t GetTracksPerGroup(void);
     uint16_t GetGroupsPerCylinder(void);
     uint8_t GetRBNs(void);
-    uint8_t GetRCTCopies(void);
-
-    void SetOnline(void);
-    void SetOffline(void);
-    bool IsOnline(void);
-    bool IsAvailable(void);
+    uint8_t GetRCTCopies(void);   
 
     void Write(uint32_t blockNumber, size_t lengthInBytes, uint8_t* buffer);
 
@@ -50,10 +45,6 @@ public:
     void WriteRCTBlock(uint32_t rctBlockNumber, uint8_t* buffer);
 
     uint8_t* ReadRCTBlock(uint32_t rctBlockNumber);
-
-public:
-    void on_power_changed(signal_edge_enum aclo_edge, signal_edge_enum dclo_edge) override;
-    void on_init_changed(void) override;
 
 public:
     parameter_bool_c use_image_size = parameter_bool_c(this, "useimagesize", "uis", false,
@@ -109,7 +100,6 @@ private:
     void UpdateCapacity(void);
     void UpdateMetadata(void);
     DriveInfo _driveInfo;
-    bool _online;
     uint32_t _unitDeviceNumber;
     uint16_t _unitClassModel;
     bool _useImageSize;

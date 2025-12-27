@@ -1,8 +1,7 @@
 /*
-    tmscp_server.cpp: Implementation of a simple TMSCP server, on top of the base
-                      MSCP server (see mscp_server.cpp)
+    tmscp_server.cpp: Implementation of a simple TMSCP server.
 
-    Copyright 2025 J. Dersch
+    Copyright J. Dersch 2026
     Contributed under the BSD 2-clause license.
 
     
@@ -24,9 +23,11 @@ namespace mscp
 {
 
 tmscp_server::tmscp_server(uda_c* port) :
-        mscp_server(port)
+        mscp_server_base(port)
 {
-    
+    name.value = "tmscp_server" ;
+    type_name.value = "tmscp_server_c";
+    log_label = "TMSSVR";
 }
 
 tmscp_server::~tmscp_server()
@@ -34,27 +35,6 @@ tmscp_server::~tmscp_server()
 
 }
 
-void tmscp_server::Reset(void) {
-
-}
-
-bool tmscp_server::on_param_changed(parameter_c *param) 
-{
-    // no own parameter or "enable" logic
-    if (param == &enabled) 
-    {
-        // accept, but do not react on enable/disable, always active
-        return true;
-    }
-    return device_c::on_param_changed(param); // more actions (for enable)
-}
-
-void tmscp_server::SetMetadata()
-{
-    name.value = "tmscp_server" ;
-    type_name.value = "tmscp_server_c";
-    log_label = "TMSSVR";
-}
 
 uint32_t tmscp_server::DispatchCommand(const std::shared_ptr<Message> message, const ControlMessageHeader* header, uint16_t modifiers, bool *protocolError)
 {
@@ -79,17 +59,22 @@ uint32_t tmscp_server::DispatchCommand(const std::shared_ptr<Message> message, c
     uint32_t cmdStatus = 0;
     switch (header->Word3.Command.Opcode)
     {
-    case Opcodes::ACCESS:
+    
+    case Opcodes::ERASE_GAP:
 
         break;
 
-    case Opcodes::AVAILABLE:
+    case Opcodes::REPOSITION:
+
+        break;
+
+    case Opcodes::WRITE_TAPE_MARK:
 
         break;
 
     default:
         // Call base MSCP implementation, then:
-        return mscp_server::DispatchCommand(message, header, modifiers, protocolError);
+        cmdStatus = mscp_server_base::DispatchCommand(message, header, modifiers, protocolError);
         break;
     }
 
@@ -104,6 +89,8 @@ uint32_t tmscp_server::DispatchCommand(const std::shared_ptr<Message> message, c
 
     // also following paragraphs for other state...
 
+    // TODO: append the above
+
     return cmdStatus;
 }
 
@@ -117,11 +104,7 @@ static tmscp_drive_c *
 GetDrive(
     uda_c * port,
     uint32_t unitNumber)
-{
-    // Sanity check for now; if this is being called we had better be attached to an TMSCP port:
-    // Would be nice to make this cleaner.
-    assert(port->GetPortType() == PortType::TMSCP);
-
+{    
     tmscp_drive_c* drive = nullptr;
     if (unitNumber < port->GetDriveCount())
     {
@@ -129,6 +112,66 @@ GetDrive(
     }
 
     return drive;
+}
+
+uint32_t 
+tmscp_server::Access(std::shared_ptr<Message> message, uint16_t unitNumber) 
+{
+    return 0;
+}
+
+uint32_t 
+tmscp_server::Available(uint16_t unitNumber, uint16_t modifiers)
+{
+    return 0;
+}
+
+uint32_t 
+tmscp_server::CompareHostData(std::shared_ptr<Message> message, uint16_t unitNumber)
+{
+    return 0;
+}
+
+uint32_t 
+tmscp_server::Erase(std::shared_ptr<Message> message, uint16_t unitNumber, uint16_t modifiers)
+{
+    return 0;
+}
+
+uint32_t 
+tmscp_server::GetUnitStatus(std::shared_ptr<Message> message, uint16_t unitNumber, uint16_t modifiers)
+{
+    return 0;
+}
+
+uint32_t 
+tmscp_server::Online(std::shared_ptr<Message> message, uint16_t unitNumber, uint16_t modifiers)
+{
+    return 0;
+}
+
+uint32_t 
+tmscp_server::Read(std::shared_ptr<Message> message, uint16_t unitNumber, uint16_t modifiers)
+{
+    return 0;
+}
+
+uint32_t 
+tmscp_server::SetControllerCharacteristics(std::shared_ptr<Message> message)
+{
+    return 0;
+}
+
+uint32_t 
+tmscp_server::SetUnitCharacteristics(std::shared_ptr<Message> message, uint16_t unitNumber, uint16_t modifiers)
+{
+    return 0;
+}
+
+uint32_t 
+tmscp_server::Write(std::shared_ptr<Message> message, uint16_t unitNumber, uint16_t modifiers)
+{
+    return 0;
 }
 
 }  // end namespace
